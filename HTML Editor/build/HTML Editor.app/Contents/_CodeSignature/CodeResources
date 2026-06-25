@@ -10,7 +10,19 @@
 		</data>
 		<key>Resources/editor.html</key>
 		<data>
-		Xd58Bq4xqW+IZ+RMMUjkALqgbbE=
+		5TNVAP1cKaaf4n7WiQkBYQVE2DU=
+		</data>
+		<key>Resources/vendor/babel.min.js</key>
+		<data>
+		ij9PMXBjuWM5itSQyKwFXDIqFws=
+		</data>
+		<key>Resources/vendor/react-dom.production.min.js</key>
+		<data>
+		/rjdydBWak+glxpuEThlhhjNrP4=
+		</data>
+		<key>Resources/vendor/react.production.min.js</key>
+		<data>
+		qneuTEn1Jbwh3h0E8Ipdc5YsfM4=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -26,7 +38,28 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Fro+uJbjS1y1vc59s7kQEqAXHuUGD8GhG/D3DbMH/bU=
+			ncg7bHp1BxT64N4nKOu6gSufaTarKxD641rRj9bZ5Yw=
+			</data>
+		</dict>
+		<key>Resources/vendor/babel.min.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			+UolSo/4AZwo/MVgCQhg6gkY8wtUhKR+uh72PI2rGIA=
+			</data>
+		</dict>
+		<key>Resources/vendor/react-dom.production.min.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			NfT5dPSyvNRNpzljNH+JUuNB+DkJ5EmCJ9Tia5j2bw0=
+			</data>
+		</dict>
+		<key>Resources/vendor/react.production.min.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			2Unxw2h67a3O2shSYYZfKbF80nOZfn9rK/xTsvnUxN0=
 			</data>
 		</dict>
 	</dict>

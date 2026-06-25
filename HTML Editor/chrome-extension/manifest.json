@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HTML Editor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "所见即所得的 HTML 编辑器 — 新开标签页编辑本地 HTML 文件，或直接编辑当前页面",
   "permissions": [
     "activeTab",

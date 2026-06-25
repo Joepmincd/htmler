@@ -1,179 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>本地 HTML/JSX 编辑器</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1a1a2e; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-}
-
-/* ── 工具栏 ── */
-#toolbar {
-  background: #16213e; border-bottom: 1px solid #e9456640; padding: 8px 14px;
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.4); flex-wrap: wrap;
-  -webkit-app-region: drag;
-}
-#toolbar .btn, #toolbar input, #toolbar .sep, #toolbar .label, #toolbar #status { -webkit-app-region: no-drag; }
-.sep { width: 1px; height: 26px; background: #e9456640; margin: 0 2px; flex-shrink: 0; }
-.btn {
-  background: #0f3460; color: #d0d0d0; border: 1px solid #e9456650; padding: 6px 12px;
-  border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s; white-space: nowrap; line-height: 1.3;
-}
-.btn:hover:not(:disabled) { background: #e94566; border-color: #e94566; color: #fff; }
-.btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.btn.accent { background: #e94566; border-color: #e94566; color: #fff; }
-.btn.accent:hover { background: #c73050; }
-.btn.mode { background: #0f3460; border-color: #e9456680; color: #e0e0e0; font-weight: 500; }
-.btn.mode.edit { background: #e94566; border-color: #e94566; color: #fff; }
-.label { color: #888; font-size: 12px; white-space: nowrap; }
-#size-input { width: 54px; padding: 5px 6px; background: #0a1628; border: 1px solid #e9456660; color: #d0d0d0; border-radius: 6px; font-size: 13px; text-align: center; }
-#status { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-#file-name { color: #b0b0b0; font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#unsaved { color: #f39c12; font-size: 11px; display: none; }
-#unsaved.show { display: block; }
-
-/* ── 标签栏 ── */
-#tab-bar {
-  display: none; background: #0f1a30; border-bottom: 1px solid #e9456640;
-  padding: 4px 8px 0; flex-shrink: 0; align-items: flex-end; gap: 0; min-height: 32px;
-  position: relative;
-}
-#tab-bar.show { display: flex; }
-#tab-container { display: flex; gap: 2px; flex: 1; overflow-x: auto; align-items: flex-end; padding-right: 2px; }
-#tab-container::-webkit-scrollbar { height: 3px; }
-#tab-container::-webkit-scrollbar-thumb { background: #e9456660; border-radius: 2px; }
-.tab {
-  display: flex; align-items: center; gap: 6px; background: #0a1628; border: 1px solid #e9456630;
-  border-bottom: none; border-radius: 6px 6px 0 0; padding: 5px 10px; cursor: pointer;
-  font-size: 12px; color: #888; white-space: nowrap; max-width: 180px; flex-shrink: 0;
-  transition: all 0.12s; user-select: none;
-}
-.tab:hover { color: #ccc; border-color: #e9456650; }
-.tab.active { background: #16213e; color: #e0e0e0; border-color: #e94566; }
-.tab .tab-name { overflow: hidden; text-overflow: ellipsis; }
-.tab .tab-dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: #f39c12; flex-shrink: 0; }
-.tab .tab-dot.show { display: inline-block; }
-.tab .tab-close { font-size: 14px; line-height: 1; color: #666; padding: 0 2px; border-radius: 3px; flex-shrink: 0; }
-.tab .tab-close:hover { color: #e94566; background: #e9456620; }
-#btn-new-tab { background: #0f1a30; color: #888; border: 1px dashed #e9456640; border-radius: 6px; padding: 3px 10px; font-size: 16px; cursor: pointer; line-height: 1.3; margin-bottom: 2px; flex-shrink: 0; position: sticky; right: 0; box-shadow: -4px 0 6px #0f1a30; z-index: 2; }
-#btn-new-tab:hover { color: #e94566; border-color: #e94566; }
-
-/* ── 预览区 ── */
-#preview-wrap { flex: 1; overflow: auto; position: relative; background: #fff; }
-#empty-state {
-  height: 100%; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 14px; background: #1a1a2e; color: #aaa;
-}
-#empty-state .ico { font-size: 72px; }
-#empty-state h2 { color: #ddd; font-size: 20px; font-weight: 500; }
-#empty-state p { font-size: 13px; color: #777; }
-#preview { display: none; }
-
-/* ── 预览 iframe ── */
-#preview-frame { display: none; width: 100%; height: 100%; border: none; }
-
-/* ── 浮动工具条 ── */
-#fbar {
-  position: fixed; display: none; background: #16213e; border: 1px solid #e94566;
-  border-radius: 8px; padding: 7px 8px; gap: 5px; z-index: 99999;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.5); align-items: center; max-width: 500px; flex-wrap: wrap;
-}
-#fbar.show { display: flex; }
-.fb { background: #0f3460; color: #d0d0d0; border: 1px solid #e9456650; padding: 4px 9px; border-radius: 5px; cursor: pointer; font-size: 12px; white-space: nowrap; line-height: 1.3; }
-.fb:hover { background: #e94566; color: #fff; }
-.fb.warn { color: #f39c12; }
-.fb.warn:hover { background: #c0392b; color: #fff; }
-.fb-sep { width: 1px; height: 20px; background: #e9456640; }
-#fb-sz { width: 46px; padding: 3px 5px; background: #0a1628; border: 1px solid #e9456660; color: #d0d0d0; border-radius: 5px; font-size: 12px; text-align: center; }
-
-/* ── 拖放遮罩 ── */
-#drop-mask { display: none; position: fixed; inset: 0; background: rgba(233,69,102,0.12); border: 3px dashed #e94566; z-index: 99998; align-items: center; justify-content: center; font-size: 26px; color: #e94566; font-weight: 600; pointer-events: none; }
-#drop-mask.show { display: flex; }
-
-/* ── 首页下载列表 ── */
-#dl-section { margin-top: 20px; width: 100%; max-width: 400px; }
-#dl-section .dl-title { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; text-align: left; }
-#dl-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
-#dl-list::-webkit-scrollbar { width: 4px; }
-#dl-list::-webkit-scrollbar-thumb { background: #e9456640; border-radius: 2px; }
-.dl-item {
-  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-  background: #ffffff06; border-radius: 6px; cursor: pointer;
-  transition: background 0.12s; text-align: left; width: 100%;
-}
-.dl-item:hover { background: #e9456620; }
-.dl-item .dl-icon { font-size: 20px; flex-shrink: 0; }
-.dl-item .dl-info { flex: 1; min-width: 0; }
-.dl-item .dl-name { color: #ccc; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dl-item .dl-date { color: #666; font-size: 11px; margin-top: 1px; }
-.dl-empty { color: #555; font-size: 12px; padding: 8px 12px; text-align: center; }
-.dl-loading { color: #666; font-size: 12px; padding: 8px 12px; text-align: center; animation: pulse 1.5s infinite; }
-@keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
-
-/* ── Toast ── */
-.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #16213e; border: 1px solid #e94566; color: #e0e0e0; padding: 10px 22px; border-radius: 8px; font-size: 14px; z-index: 999999; pointer-events: none; animation: toastIn 0.2s ease; }
-@keyframes toastIn { from { opacity:0; transform: translateX(-50%) translateY(8px); } }
-</style>
-</head>
-<body>
-
-<!-- 工具栏 -->
-<div id="toolbar">
-  <button class="btn accent" id="btn-open">📂 打开文件</button>
-  <button class="btn" id="btn-save" disabled>💾 保存</button>
-  <div class="sep"></div>
-  <button class="btn mode" id="btn-mode" disabled>👁 预览模式</button>
-  <div id="status"><span id="file-name">未打开文件</span><span id="unsaved">● 有未保存更改</span></div>
-</div>
-
-<!-- 标签栏 -->
-<div id="tab-bar"><div id="tab-container"></div><button id="btn-new-tab">+</button></div>
-
-<!-- 预览区 -->
-<div id="preview-wrap">
-  <div id="empty-state">
-    <div class="ico">📄</div>
-    <h2>本地 HTML 编辑器</h2>
-    <p>打开 HTML / JSX / TSX 文件即可预览和编辑</p>
-    <button class="btn accent" onclick="openFile()" style="padding:10px 28px;font-size:15px;margin-top:6px">📂 打开文件</button>
-    <p style="margin-top:12px;font-size:12px;color:#555">或将 .html / .jsx / .tsx 文件拖到此处</p>
-    <div id="dl-section">
-      <div class="dl-title">📁 来自下载</div>
-      <div id="dl-list"><div class="dl-loading">加载中...</div></div>
-    </div>
-  </div>
-  <div id="preview"></div>
-  <iframe id="preview-frame"></iframe>
-</div>
-
-<!-- 浮动工具条 -->
-<div id="fbar">
-  <button class="fb" id="fb-aplus">A+</button>
-  <input type="number" id="fb-sz" value="16" min="6" max="200">
-  <button class="fb" id="fb-aminus">A−</button>
-  <button class="fb" id="fb-apply">✓ 应用字号</button>
-  <div class="fb-sep"></div>
-  <button class="fb" id="fb-add-text">➕ 文字行</button>
-  <button class="fb" id="fb-add-img">🖼 图片行</button>
-  <button class="fb" id="fb-repl-img" style="display:none">🔄 替换图片</button>
-  <div class="fb-sep"></div>
-  <button class="fb warn" id="fb-del">🗑 删除</button>
-</div>
-
-<!-- 拖放遮罩 -->
-<div id="drop-mask">放开鼠标以打开 HTML / JSX / TSX 文件</div>
-
-<!-- 隐藏文件输入 -->
-<input type="file" id="file-in" accept=".html,.htm,.jsx,.tsx" style="display:none">
-<input type="file" id="img-in" accept="image/*" style="display:none">
-
-<script src="vendor/babel.min.js"></script>
-<script>
 // ── 状态 ──
 let nextTabId = 0, tabs = [], currentTabId = null;
 let editMode = false;
@@ -303,7 +127,8 @@ function createTab(name, fHandle, sourceHTML, styleTags, bodyHTML, kind, filePat
 }
 
 function createBlankTab() {
-  const tab = { id: ++nextTabId, name: '空白页', fHandle: null, sourceHTML: '', styleTags: '', previewBody: '', unsaved: false, isBlank: true };
+  const html = '<!DOCTYPE html>\n<html lang="zh">\n<head>\n<meta charset="UTF-8">\n</head>\n<body>\n</body>\n</html>';
+  const tab = { id: ++nextTabId, name: '空白页', fHandle: null, filePath: '', kind: 'html', sourceHTML: html, originalSource: html, workingSource: html, styleTags: '', previewBody: '', unsaved: false, jsxMeta: null };
   tabs.push(tab);
   switchTab(tab.id);
   renderTabs();
@@ -817,7 +642,6 @@ document.getElementById('img-in').addEventListener('change', e => {
 // ── 替换图片 ──
 function startReplaceImg() {
   if (!activeImg) return;
-  if (isNativeApp()) { window.webkit.messageHandlers.editorBridge.postMessage({ action: 'replaceImage' }); return; }
   document.getElementById('img-in').click();
 }
 
@@ -833,9 +657,7 @@ function deleteEl() {
 }
 
 // ── 原生 App 桥接 ──
-function isNativeApp() {
-  return !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.editorBridge);
-}
+function isNativeApp() { return false; }
 window.__loadHTMLContent = function(data) {
   const source = data.source || data.html || '';
   const filename = data.filename || 'untitled.html';
@@ -870,21 +692,10 @@ window.__receiveDownloadsList = function(files) {
   });
 };
 
-function refreshDownloads() {
-  if (isNativeApp()) {
-    window.webkit.messageHandlers.editorBridge.postMessage({ action: 'listDownloads' });
-  } else {
-    const sec = document.getElementById('dl-section');
-    if (sec) sec.style.display = 'none';
-  }
-}
+function refreshDownloads() {}
 
 // ── 文件操作 ──
 async function openFile() {
-  if (isNativeApp()) {
-    window.webkit.messageHandlers.editorBridge.postMessage({ action: 'open' });
-    return;
-  }
   document.getElementById('file-in').click();
 }
 
@@ -992,6 +803,3 @@ function toast(msg, ms=2200) {
 
 // 初始加载下载列表
 refreshDownloads();
-</script>
-</body>
-</html>

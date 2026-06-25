@@ -1,4 +1,5 @@
 import Cocoa
+import UniformTypeIdentifiers
 @preconcurrency import WebKit
 // MARK: - App Entry Point
 let app = NSApplication.shared
@@ -13,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     var window: NSWindow!
     var webView: WKWebView!
     var currentFileURL: URL?
+    var fileURLsByPath: [String: URL] = [:]
     var pendingOpenURL: URL?
     private var webViewReady = false
 
@@ -87,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     // ── 文件操作 ──
 
     func openFileFromURL(_ url: URL) {
-        guard ["html", "htm"].contains(url.pathExtension.lowercased()) else { return }
+        guard ["html", "htm", "jsx", "tsx"].contains(url.pathExtension.lowercased()) else { return }
 
         if webViewReady {
             loadHTMLContent(from: url)
@@ -100,11 +102,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         do {
             let content = try String(contentsOf: url, encoding: .utf8)
             currentFileURL = url
+            fileURLsByPath[url.path] = url
             window.title = url.lastPathComponent
 
             let data: [String: String] = [
+                "source": content,
                 "html": content,
-                "filename": url.lastPathComponent
+                "filename": url.lastPathComponent,
+                "kind": url.pathExtension.lowercased(),
+                "path": url.path
             ]
             let json = try JSONSerialization.data(withJSONObject: data)
             let jsonStr = String(data: json, encoding: .utf8)!
@@ -116,31 +122,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     }
 
     @objc func saveCurrentFile() {
-        webView.evaluateJavaScript("buildHTML()") { [weak self] result, error in
-            guard let self = self, let html = result as? String else {
+        webView.evaluateJavaScript("window.__buildCurrentPayload()") { [weak self] result, error in
+            guard let self = self else { return }
+            guard let payload = result as? [String: Any], let content = payload["content"] as? String else {
                 if let error = error {
-                    self?.showError("保存失败：\(error.localizedDescription)")
+                    self.showError("保存失败：\(error.localizedDescription)")
                 }
                 return
             }
+            let path = payload["path"] as? String
+            let targetURL = path.flatMap { self.fileURLsByPath[$0] ?? URL(fileURLWithPath: $0) } ?? self.currentFileURL
 
-            if let url = self.currentFileURL {
+            if let url = targetURL {
                 do {
-                    try html.write(to: url, atomically: true, encoding: .utf8)
+                    try content.write(to: url, atomically: true, encoding: .utf8)
+                    self.currentFileURL = url
+                    self.fileURLsByPath[url.path] = url
                     self.webView.evaluateJavaScript("window.__saveDone(true)")
                 } catch {
                     self.webView.evaluateJavaScript("window.__saveDone(false)")
                     self.showError("保存失败：\(error.localizedDescription)")
                 }
             } else {
-                self.saveFileAs(html: html)
+                self.saveFileAs(html: content)
             }
         }
     }
 
     func saveFileAs(html: String) {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.html]
+        let jsxType = UTType(filenameExtension: "jsx") ?? .plainText
+        let tsxType = UTType(filenameExtension: "tsx") ?? .plainText
+        panel.allowedContentTypes = [.html, jsxType, tsxType]
         panel.nameFieldStringValue = currentFileURL?.lastPathComponent ?? "untitled.html"
 
         panel.begin { [weak self] response in
@@ -162,7 +175,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
 
     @objc func openFileDialog() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.html]
+        let jsxType = UTType(filenameExtension: "jsx") ?? .plainText
+        let tsxType = UTType(filenameExtension: "tsx") ?? .plainText
+        panel.allowedContentTypes = [.html, jsxType, tsxType]
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -209,7 +224,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
             webView.evaluateJavaScript("window.__receiveDownloadsList([])")
             return
         }
-        let htmlFiles = files.filter { ["html", "htm"].contains($0.pathExtension.lowercased()) }
+        let htmlFiles = files.filter { ["html", "htm", "jsx", "tsx"].contains($0.pathExtension.lowercased()) }
             .sorted { url1, url2 in
                 let d1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date.distantPast
                 let d2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date.distantPast
@@ -254,17 +269,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         case "open":
             openFileDialog()
         case "save":
-            if let html = body["html"] as? String {
-                if let url = currentFileURL {
+            if let content = (body["content"] as? String) ?? (body["html"] as? String) {
+                let path = body["path"] as? String
+                let targetURL = path.flatMap { fileURLsByPath[$0] ?? URL(fileURLWithPath: $0) } ?? currentFileURL
+                if let url = targetURL {
                     do {
-                        try html.write(to: url, atomically: true, encoding: .utf8)
+                        try content.write(to: url, atomically: true, encoding: .utf8)
+                        currentFileURL = url
+                        fileURLsByPath[url.path] = url
                         webView.evaluateJavaScript("window.__saveDone(true)")
                     } catch {
                         webView.evaluateJavaScript("window.__saveDone(false)")
                         showError("保存失败：\(error.localizedDescription)")
                     }
                 } else {
-                    saveFileAs(html: html)
+                    saveFileAs(html: content)
                 }
             }
         case "replaceImage":
@@ -379,9 +398,11 @@ extension AppDelegate {
     }
 
     @objc func saveAs() {
-        webView.evaluateJavaScript("buildHTML()") { [weak self] result, error in
-            guard let self = self, let html = result as? String else { return }
-            self.saveFileAs(html: html)
+        webView.evaluateJavaScript("window.__buildCurrentPayload()") { [weak self] result, error in
+            guard let self = self,
+                  let payload = result as? [String: Any],
+                  let content = payload["content"] as? String else { return }
+            self.saveFileAs(html: content)
         }
     }
 

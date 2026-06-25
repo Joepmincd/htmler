@@ -20,6 +20,7 @@ swiftc -o "$APP_BUNDLE/Contents/MacOS/$APP_NAME" src/App.swift \
 # 资源
 cp Info.plist "$APP_BUNDLE/Contents/Info.plist"
 cp Resources/editor.html "$APP_BUNDLE/Contents/Resources/editor.html"
+cp -R Resources/vendor "$APP_BUNDLE/Contents/Resources/vendor"
 
 # 图标
 echo ">> 图标..."
